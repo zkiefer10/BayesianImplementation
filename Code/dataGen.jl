@@ -3,7 +3,7 @@ using Plots
 
 beta_0 = 10
 beta_1 = 5
-N = 150
+N = 500
 
 uni = Uniform(0,50)
 

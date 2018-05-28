@@ -16,6 +16,30 @@ function nbAcceptanceRatio(mu, r, mu_p, r_p, y, N)
     return sum(term1 + term2 + term3 + term4 + term5) + term6
 end
 
+function nbPostPredict(trace, x)
+    # Define size parameters
+    N = length(trace[:,1])
+    K = length(trace[1,:])
+
+    # Define space for recording draws of y
+    yDraws = zeros(N)
+
+    # Draw y repeatedly
+    for i in 1:N
+        # First draw from the parameter distribution
+        drawSpace = trace[i,:]
+
+        # Calculate paramters of the negative binomial distribution
+        mu = calculateMu(drawSpace[1:K-1], x)
+        r = drawSpace[K]
+        p = 1 - mu / (r + mu)
+
+        # Draw and record y
+        yDraws[i] = rand(NegativeBinomial(r,p))
+    end
+    return yDraws
+end
+
 # Generate a proposal value of r from a truncated normal distribution
 # r must be positive
 function genProposal(mu, sigma)
@@ -98,10 +122,36 @@ println("Posterior median beta_1: ", median(trace[burn_in+1:n_iter+1,2]))
 println("Posterior median r: ", median(trace[burn_in+1:n_iter+1,3]))
 println("Acceptance rate: ", mean(acceptRate[burn_in+1:n_iter+1]))
 
-plot(trace[burn_in+1:n_iter+1,1])
-plot(trace[burn_in+1:n_iter+1,2])
-plot(trace[burn_in+1:n_iter+1,3])
+plot(trace[1:n_iter+1,1])
+plot(trace[1:n_iter+1,2])
+plot(trace[1:n_iter+1,3])
 
 histogram(trace[burn_in+1:n_iter+1,1])
 histogram(trace[burn_in+1:n_iter+1,2])
 histogram(trace[burn_in+1:n_iter+1,3])
+
+ind95 = convert(Int, floor((n_iter - burn_in)*0.95))
+ind05 = convert(Int, floor((n_iter - burn_in)*0.05))
+beta_0_sort = sort(trace[burn_in+1:n_iter+1,1])
+beta_0_cinf = [beta_0_sort[ind05], beta_0_sort[ind95]]
+println("Central 95% beta_0 interval: ", beta_0_cinf)
+beta_1_sort = sort(trace[burn_in+1:n_iter+1,2])
+beta_1_cinf = [beta_1_sort[ind05], beta_1_sort[ind95]]
+println("Central 95% beta_1 interval: ", beta_1_cinf)
+r_sort = sort(trace[burn_in+1:n_iter+1,3])
+r_cinf = [r_sort[ind05], r_sort[ind95]]
+println("Central 95% r interval: ", r_cinf)
+
+# Generate predictions of out-of-sample y
+yOOS = 60
+predict = nbPostPredict(trace[burn_in + 1:n_iter+1,:], yOOS
+
+# Display summary statistics for predictions
+println("Posterior predictive median y, for x = ", yOOS, : ", median(predict))
+
+n_predict = length(predict)
+ind95 = convert(Int, floor(n_predict * 0.95))
+ind05 = convert(Int, floor(n_predict * 0.05))
+y_predict_cinf = [predict[ind05], predict[ind95]]
+println("Central 95% predictive y interval, for x = ", yOOS , ": ", y_predict_cinf)
+histogram(predict)

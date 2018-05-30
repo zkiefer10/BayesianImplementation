@@ -18,11 +18,12 @@ end
 
 function nbPostPredict(trace, x)
     # Define size parameters
+    predictPerDraw = 1
     N = length(trace[:,1])
     K = length(trace[1,:])
 
     # Define space for recording draws of y
-    yDraws = zeros(N)
+    yDraws = zeros(N * predictPerDraw)
 
     # Draw y repeatedly
     for i in 1:N
@@ -34,8 +35,8 @@ function nbPostPredict(trace, x)
         r = drawSpace[K]
         p = 1 - mu / (r + mu)
 
-        # Draw and record y
-        yDraws[i] = rand(NegativeBinomial(r,p))
+        # Draw and record set of y's
+        yDraws[(i - 1) * predictPerDraw + 1:i * predictPerDraw] = rand(NegativeBinomial(r,p), predictPerDraw)
     end
     return yDraws
 end
@@ -52,6 +53,17 @@ function calculateMu(beta, x)
     return beta[1] + beta[2] * x
 end
 
+function prior(x)
+    # Uninformative prior:
+    return 1
+
+    #Informative prior, in which beta_0, beta_1 and r are distributed independently:
+    # beta_0 = x[1]
+    # beta_1 = x[2]
+    # r = x[3]
+    # return pdf(Normal(5, 3), beta_0) * pdf(Normal(5, 3), beta_1) * pdf(Gamma(5,3), r)
+end
+
 # Declare distributions for later use
 standNorm = Normal()
 standUni = Uniform(0,1)
@@ -64,7 +76,7 @@ Y = data[:,2]
 N = length(Y)
 
 # Declare variances for proposal distributions
-sigma = [0.5, 0.7, 0.5] * 1
+sigma = [0.5, 0.7, 0.5] * 1 # Use multiplier at end to quickly calibrate acceptance rate.
 sigma_beta_0 = sigma[1]
 sigma_beta_1 = sigma[2]
 sigma_r = sigma[3]
@@ -98,6 +110,9 @@ for i in 1:n_iter
     # Calculate acceptance probability
     alpha = exp(nbAcceptanceRatio(mu_b, params_b[3], mu_g, params_g[3], Y, N))
 
+    # If using an informative prior, implement that in function prior() above for use here:
+    alpha = alpha * prior(params_b) / prior(params_g  )
+
     # Randomly accept or reject proposal, record applicable draw from distribution
     uni = rand(standUni)
     if (uni < alpha)
@@ -122,13 +137,19 @@ println("Posterior median beta_1: ", median(trace[burn_in+1:n_iter+1,2]))
 println("Posterior median r: ", median(trace[burn_in+1:n_iter+1,3]))
 println("Acceptance rate: ", mean(acceptRate[burn_in+1:n_iter+1]))
 
-plot(trace[1:n_iter+1,1])
-plot(trace[1:n_iter+1,2])
-plot(trace[1:n_iter+1,3])
+beta_0_tracePlot = plot(trace[1:n_iter+1,1])
+savefig(beta_0_tracePlot, "./Figs/beta_0_tracePlot.png")
+beta_1_tracePlot = plot(trace[1:n_iter+1,2])
+savefig(beta_1_tracePlot, "./Figs/beta_1_tracePlot.png")
+r_tracePlot = plot(trace[1:n_iter+1,3])
+savefig(r_tracePlot, "./Figs/r_tracePlot.png")
 
-histogram(trace[burn_in+1:n_iter+1,1])
-histogram(trace[burn_in+1:n_iter+1,2])
-histogram(trace[burn_in+1:n_iter+1,3])
+beta_0_hist = histogram(trace[burn_in+1:n_iter+1,1])
+savefig(beta_0_hist, "./Figs/beta_0_hist.png")
+beta_1_hist = histogram(trace[burn_in+1:n_iter+1,2])
+savefig(beta_1_hist, "./Figs/beta_1_hist.png")
+r_hist = histogram(trace[burn_in+1:n_iter+1,3])
+savefig(r_hist, "./Figs/r_hist.png")
 
 ind95 = convert(Int, floor((n_iter - burn_in)*0.95))
 ind05 = convert(Int, floor((n_iter - burn_in)*0.05))
@@ -144,14 +165,15 @@ println("Central 95% r interval: ", r_cinf)
 
 # Generate predictions of out-of-sample y
 yOOS = 60
-predict = nbPostPredict(trace[burn_in + 1:n_iter+1,:], yOOS
+predict = sort(nbPostPredict(trace[burn_in + 2:n_iter+1,:], yOOS))
 
 # Display summary statistics for predictions
-println("Posterior predictive median y, for x = ", yOOS, : ", median(predict))
+println("Posterior predictive median y, for x = ", yOOS, ": ", median(predict))
 
 n_predict = length(predict)
 ind95 = convert(Int, floor(n_predict * 0.95))
 ind05 = convert(Int, floor(n_predict * 0.05))
 y_predict_cinf = [predict[ind05], predict[ind95]]
 println("Central 95% predictive y interval, for x = ", yOOS , ": ", y_predict_cinf)
-histogram(predict)
+yOOS_hist = histogram(predict)
+savefig(yOOS_hist, "./Figs/yOOS_hist.png")

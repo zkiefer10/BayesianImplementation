@@ -1,0 +1,166 @@
+\documentclass[12pt]{article}
+\renewcommand{\baselinestretch}{1.5}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage[titletoc,title]{appendix}
+\usepackage{bm}
+\usepackage[nohead]{geometry}
+\usepackage{setspace}
+\usepackage[bottom, hang, flushmargin]{footmisc}
+\usepackage{indentfirst}
+\usepackage{endnotes}
+\usepackage{graphicx}
+\usepackage{rotating}
+\usepackage{natbib}
+\usepackage[justification=centering, labelfont=bf, textfont=bf, labelsep=newline]{caption}
+\usepackage{pbox}
+\usepackage{array,rotating,threeparttable,booktabs,dcolumn,multirow}
+\usepackage{enumerate}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+\setcounter{MaxMatrixCols}{30}
+\newtheorem{theorem}{Theorem}
+\newtheorem{acknowledgement}{Acknowledgement}
+\newtheorem{algorithm}[theorem]{Algorithm}
+\newtheorem{axiom}[theorem]{Axiom}
+\newtheorem{case}[theorem]{Case}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{conclusion}[theorem]{Conclusion}
+\newtheorem{condition}[theorem]{Condition}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{criterion}[theorem]{Criterion}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{exercise}[theorem]{Exercise}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{notation}[theorem]{Notation}
+\newtheorem{problem}[theorem]{Problem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}[theorem]{Remark}
+\newtheorem{solution}[theorem]{Solution}
+\newtheorem{summary}[theorem]{Summary}
+\newenvironment{proof}[1][Proof]{\noindent\textbf{#1.} }{\ \rule{0.5em}{0.5em}}
+\geometry{left=1in,right=1in,top=1.00in,bottom=1.0in}
+\DeclareMathOperator*{\argmin}{\arg\!\min}
+
+\graphicspath{ {C:/Users/Zak/Google Drive/Classes--Fall 2017/Time Series/Problem Set 4/} }
+\newcommand{\expectation}{\mathbb{E}}
+
+\title{Implementation Project: Bayesian Negative Binomial Regression}
+\author{Bayesian Econometrics\\Zachary Kiefer}
+
+\begin{document}
+	\maketitle
+	\section{Introduction}
+	Negative binomial (NB) regression presents an alternative to OLS regression and similar methods when working with count (i.e. discrete) data. Although this can also be achieved through methods such as Poisson regression, NB regression does not suffer from the restriction that the mean of the error distribution be equal to its variance, which can make it difficult to . (The negative binomial distribution can be considered an overdispersed Poisson distribution, in that it allows for the variance to be greater than the mean.) Additionally, the negative binomial distribution is naturally suited for modeling certain economic processes, such as the amount of time a
+	
+	This paper will cover a method for estimating an NB regression model using a Bayesian framework, with emphasis on doing so in a computationally efficient manner.
+	
+	\section{Negative Binomial Regression}
+	To begin, consider OLS regression: a fundamental assumption of OLS is that the observed data is produced by a data-generating process of the form:
+	
+	\begin{equation}
+	y_i = x_i \beta + \epsilon_i,~~~\epsilon_i \sim`N(0, \sigma^2)
+	\end{equation}
+	
+	This could alternately be expressed in the form:
+	
+	\begin{equation}
+	y_i \sim N(x_i \beta, \sigma^2)
+	\end{equation}
+	
+	That is, each observation of the dependent variable $y$ is drawn from an i.i.d. normal distribution, centered on $x_i\beta$ with variance $\sigma^2$.
+	
+	Similarly, in a negative binomial regression, we make the assumption that each observation of $y$ is drawn from an i.i.d. negative binomial distribution with mean $\mu_i = x_i \beta$ and dispersion parameter $r$.
+	
+	\subsection{Negative Binomial Distribution}
+	Consider a simple experiment in which the probability of success is denoted $p$. Now suppose that this experiment is repeated until it has failed a certain number of times, denoted $r$. The negative binomial distribution describes the probability that the experiment will be achieve $k$ successes by the time it accumulates $r$ failures.
+	
+	\subsection{Probability Density Function}
+	The pdf of the negative binomial distribution, following the parameterization described above, is:
+	
+	\begin{equation}
+	P(k|p,r) = \begin{pmatrix}k+r-1\\k\end{pmatrix}(1-p)^rp^k
+	\end{equation}
+	
+	In this parameterization, the mean of the distribution is $m = \frac{pr}{1-p}$. Because we wish to describe a data-generating process in which the mean of an NB distribution is defined by the data, it becomes more convenient to use an alternate parameterization using this $m$ and the previously-defined $r$. This alternate pdf is:
+	
+	\begin{equation}
+	P(k|m, r) = \frac{\Gamma(k+r)}{k!\Gamma(r)}\left(\frac{m}{r+m}\right)^k\left(\frac{r}{r+m}\right)^r
+	\end{equation}
+	
+	\subsection{Likelihood Function}
+	Given a set of observed data $Y = [y_1, y_2, \dots, y_N]'$ and $X = [x_1', x_2', \dots, x_N']'$, in which $x_i = [x_{i1}, x_{i2}, \dots, x_{iK}]$, and parameters $\beta$ and r, the likelihood of having observed this data is:
+	
+	\begin{align}
+	P(Y|\beta, r) &= \prod_{i = 1}^{N} P(y_i|\beta, r)
+	\end{align}
+	
+	For ease of calculation, we will resort to the log-likelihood function:
+	
+	\begin{align}
+	P(Y|\beta, r) &= \sum_{i = 1}^{N} log P(y_i|\beta, r)\\
+	&= \sum_{i = 1}^{N} \log \Gamma(r + y_i) - \log(y_i!) - \log \Gamma(r) + y_i \log(\frac{m_i}{r + m_i}) + r \log(\frac{r}{r + m_i})
+	\end{align}
+	
+	in which $m_i = x_i \beta$.
+	
+	\section{Posterior Probability Sampling}
+	Because the posterior of a negative binomial regression is not conducive to analytical solutions, we shall instead sample the posterior distribution using a Metropolis-Hastings algorithm. This will require calculation of the acceptance ratio, 
+	
+	\begin{equation}
+	\alpha = \min\left( \frac{P(Y|\theta^*)}{P(Y|\theta^g)}\frac{P(\theta^*)}{P(\theta^g)}\frac{q(\theta^g|\theta^*)}{q(\theta^*|\theta^g)}, 1\right)
+	\end{equation}
+	
+	in which $\theta = \{\beta, r\}$.
+	
+	\subsection{Priors}
+	For simplicity, we can use an uninformative prior which places equal weight upon all possible values of $\theta$. This can be thought of as a continuous uniform distribution, over an arbitrarily large support. This allows the $P(\theta^*)$ and $P(\theta^g)$ factors to cancel out. 
+	
+	\subsection{Proposal Distribution}
+	We use an essentially symmetric proposal distribution, again for simplicity, as it allows the proposal probabilities to cancel out. $\beta^*$ can be proposed using a multivariate normal distribution of appropriate dimensionality, centered on $\beta^g$ and having an arbitrary variance-covariance matrix\footnote{This matrix can be calibrated to result in a desirable acceptance rate.}.
+	
+	$r$, on the other hand, must necessarily be positive, and thus we propose it (independently of $\beta$) using a normal distribution which has been left-truncated at 0.
+	
+	\subsection{Acceptance Ratio}
+	With both the prior and proposal factors canceling out, the acceptance probability becomes:
+	
+	\begin{equation}
+		\alpha = \min\left( \frac{P(Y|\theta^*)}{P(Y|\theta^g)},1\right)
+	\end{equation}
+	
+	The likelihood ratio in this formula can be constructed by first employing the log-likelihood functions defined above:
+	
+	\begin{align*}
+	\log\left( \frac{P(Y|\theta^*)}{P(Y|\theta^g)} \right) &= \log P(Y|\theta^*) - \log P(Y|\theta^g)\\
+	&= \sum_{i = 1}^{N} \left[\log \Gamma(r^* + y_i) - \log(y_i!) - \log \Gamma(r^*) + y_i \log\left(\frac{m_i^*}{r^* + m_i^*}\right) + r^* \log\left(\frac{r^*}{r^* + m_i^*}\right)\right] \\&~~- \sum_{i = 1}^{N} \left[\log \Gamma(r^g + y_i) - \log(y_i!) - \log \Gamma(r^g) + y_i \log\left(\frac{m_i^g}{r^g + m_i^g}\right) + r^g \log(\frac{r^g}{r^g + m_i^g})\right]
+	\end{align*}
+	
+	The terms containing only $y_i$ cancel, since this is not parameter-dependent. Other terms can be combined, leaving us with:
+	
+	\begin{align*}
+	\log\left( \frac{P(Y|\theta^*)}{P(Y|\theta^g)} \right) &= \sum_{i = 1}^{N} \left[\log\Gamma(r^* + y_i) - \log\Gamma(r^g + y_i) + r^* \log\left(\frac{r^*}{r^* + m_i^*}\right) - r^g \log\left(\frac{r^g}{r^g + m_i^g}\right)\right.\\&~~ \left.+ y_i\log\left(\frac{m_i^*}{m_i^g}\frac{r^g + m_i^g}{r^* + m_i^*}\right)\right] + N\left[\log\Gamma(r^g) - \log\Gamma(r^*)\right]
+	\end{align*}
+	
+	This logged likelihood ratio (distinct from a log-likelihood ratio) can then be used to generate the acceptance ratio.
+	
+	\subsection{Notes on Computational Considerations}
+	When implementing the Metropolis-Hastings algorithm as outlined above, certain complications may present themselves. Common concerns, and remedies to them, are presented here:
+	
+	\subsubsection{Informative Priors and Non-Symmetric Proposals}
+	If an informative prior or a non-symmetric proposal distribution is desired, it can be implemented with minimal additional complexity, and without altering the calculation of the logged likelihood ratio. The example code accompanying this writeup already incorporates functions to emulate the prior and proposal components of the acceptance ratio: since this code is implemented using an uninformative prior and symmetric proposal, both functions return 1 by default, but they can easily be altered to perform more informative calculations.
+	
+	\subsubsection{Requirement for Positive Means}
+	It is not necessary for any particular element of $\beta$ to be positive, but $\beta$ as a whole must be such that $x_i \beta > 0~\forall~i$. In practice, this may not be an issue, as the acceptance ratio becomes small when $x_i\beta$ approaches 0, making it unlikely that the random-walk proposals will result in it becoming negative. If this requirement does become an issue, it may be beneficial to instead specify $\log m_i = x_i \beta$, which removes the need to alter any proposal distributions.
+	
+	\subsubsection{Efficient Calculation of Acceptance Ratio}
+	An effective method for computing the logged likelihood ratio is to exploit vectorized functions, a feature of many mathematical software packages. Each of the five terms inside the sum in the log-likelihood ratio can be rapidly computed as a vector of values, each element corresponding to an observation of the data. These five vectors can be added together, then summed element-wise, to produce the value of the sum. The sixth term (outside of the sum) can then be added as well.
+	
+	\subsubsection{Efficient Computation of log-Gamma Functions}
+	While the log-Gamma function can be computed in a brute-force manner, i.e. by first computing the Gamma function, then taking its logarithm, most mathematical software will have a dedicated log-Gamma function. Aside from being more computationally efficient, the dedicated log-Gamma function is less prone to rounding errors which may result from taking the Gamma function of large values.
+	
+	\subsubsection{Determination of Acceptance Decision}
+	Finally, once the logged-likelihood ratio is computed, it is straightforward to compute $\alpha$ and compare this value with a value drawn from the $U(0,1)$ distribution to make the acceptance decision. However, this is not necessary: a mathematically equivalent approach is to draw a value of the random variable $Z\sim Exp(1)$, and accept the proposal if $-Z$ is less than the logged likelihood ratio.
+\end{document}

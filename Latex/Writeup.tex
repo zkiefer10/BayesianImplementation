@@ -45,7 +45,6 @@
 \geometry{left=1in,right=1in,top=1.00in,bottom=1.0in}
 \DeclareMathOperator*{\argmin}{\arg\!\min}
 
-\graphicspath{ {C:/Users/Zak/Google Drive/Classes--Fall 2017/Time Series/Problem Set 4/} }
 \newcommand{\expectation}{\mathbb{E}}
 
 \title{Implementation Project: Bayesian Negative Binomial Regression}
@@ -54,15 +53,22 @@
 \begin{document}
 	\maketitle
 	\section{Introduction}
-	Negative binomial (NB) regression presents an alternative to OLS regression and similar methods when working with count (i.e. discrete) data. Although this can also be achieved through methods such as Poisson regression, NB regression does not suffer from the restriction that the mean of the error distribution be equal to its variance, which can make it difficult to . (The negative binomial distribution can be considered an overdispersed Poisson distribution, in that it allows for the variance to be greater than the mean.) Additionally, the negative binomial distribution is naturally suited for modeling certain economic processes, such as the amount of time a
+	Negative binomial (NB) regression presents an alternative to OLS regression and similar methods when working with count (i.e. discrete) data, and particularly when the data exhibits heteroskedasticity of a form where the conditional variance of the dependent variable is proportional to its conditional mean, as in Figure 1. Although this can also be achieved through methods such as Poisson regression, NB regression does not suffer from the restriction that the mean of the error distribution be equal to its variance\footnote{The negative binomial distribution can be considered an overdispersed Poisson distribution, in that it allows for the variance to be greater than the mean.}, which can make it difficult to apply Poisson regression to data which does not exhibit this property. Additionally, the negative binomial distribution is naturally suited for modeling certain economic processes, such as the amount of time a worker remains unemployed or the number of bargaining periods before an agreement among several parties is reached.
+	
+	\begin{figure}
+		\caption{Data Suitable for Negative Binomial Regression}
+		\centering
+		\includegraphics[width=0.5\textwidth]{../Figs/dataPlot.png}
+	\end{figure}
 	
 	This paper will cover a method for estimating an NB regression model using a Bayesian framework, with emphasis on doing so in a computationally efficient manner.
 	
+	\pagebreak
 	\section{Negative Binomial Regression}
 	To begin, consider OLS regression: a fundamental assumption of OLS is that the observed data is produced by a data-generating process of the form:
 	
 	\begin{equation}
-	y_i = x_i \beta + \epsilon_i,~~~\epsilon_i \sim`N(0, \sigma^2)
+	y_i = x_i \beta + \epsilon_i,~~~\epsilon_i \sim N(0, \sigma^2)
 	\end{equation}
 	
 	This could alternately be expressed in the form:
@@ -76,7 +82,7 @@
 	Similarly, in a negative binomial regression, we make the assumption that each observation of $y$ is drawn from an i.i.d. negative binomial distribution with mean $\mu_i = x_i \beta$ and dispersion parameter $r$.
 	
 	\subsection{Negative Binomial Distribution}
-	Consider a simple experiment in which the probability of success is denoted $p$. Now suppose that this experiment is repeated until it has failed a certain number of times, denoted $r$. The negative binomial distribution describes the probability that the experiment will be achieve $k$ successes by the time it accumulates $r$ failures.
+	Consider a simple experiment in which the probability of success is denoted $p$. Now suppose that this experiment is repeated until it has failed a certain number of times, denoted $r$. The negative binomial distribution describes the probability that the experiment will achieve $k$ successes by the time it accumulates $r$ failures.
 	
 	\subsection{Probability Density Function}
 	The pdf of the negative binomial distribution, following the parameterization described above, is:
@@ -85,10 +91,10 @@
 	P(k|p,r) = \begin{pmatrix}k+r-1\\k\end{pmatrix}(1-p)^rp^k
 	\end{equation}
 	
-	In this parameterization, the mean of the distribution is $m = \frac{pr}{1-p}$. Because we wish to describe a data-generating process in which the mean of an NB distribution is defined by the data, it becomes more convenient to use an alternate parameterization using this $m$ and the previously-defined $r$. This alternate pdf is:
+	In this parameterization, the mean of the distribution is $m = \frac{pr}{1-p}$. Because we wish to describe a data-generating process in which the mean of an NB distribution is defined by the data, it becomes more convenient to use an alternate parameterization using this $m$ and the previously-defined $r$. Solving for $p$ in the equation for $m$, we find that $p = \frac{m}{m+r}$, giving us the pdf for this alternative parameterization:
 	
 	\begin{equation}
-	P(k|m, r) = \frac{\Gamma(k+r)}{k!\Gamma(r)}\left(\frac{m}{r+m}\right)^k\left(\frac{r}{r+m}\right)^r
+	P(k|m, r) = \frac{\Gamma(k+r)}{k!\Gamma(r)}\left(\frac{r}{r+m}\right)^r\left(\frac{m}{r+m}\right)^k
 	\end{equation}
 	
 	\subsection{Likelihood Function}
@@ -98,6 +104,7 @@
 	P(Y|\beta, r) &= \prod_{i = 1}^{N} P(y_i|\beta, r)
 	\end{align}
 	
+	\pagebreak
 	For ease of calculation, we will resort to the log-likelihood function:
 	
 	\begin{align}
@@ -153,7 +160,7 @@
 	If an informative prior or a non-symmetric proposal distribution is desired, it can be implemented with minimal additional complexity, and without altering the calculation of the logged likelihood ratio. The example code accompanying this writeup already incorporates functions to emulate the prior and proposal components of the acceptance ratio: since this code is implemented using an uninformative prior and symmetric proposal, both functions return 1 by default, but they can easily be altered to perform more informative calculations.
 	
 	\subsubsection{Requirement for Positive Means}
-	It is not necessary for any particular element of $\beta$ to be positive, but $\beta$ as a whole must be such that $x_i \beta > 0~\forall~i$. In practice, this may not be an issue, as the acceptance ratio becomes small when $x_i\beta$ approaches 0, making it unlikely that the random-walk proposals will result in it becoming negative. If this requirement does become an issue, it may be beneficial to instead specify $\log m_i = x_i \beta$, which removes the need to alter any proposal distributions.
+	It is not necessary for any particular element of $\beta$ to be positive, but $\beta$ as a whole must be such that $x_i \beta > 0~\forall~i$. In practice, this may not be an issue, as the acceptance ratio becomes small when $x_i\beta$ approaches 0, making it unlikely that the random-walk proposals will result in it becoming negative. If this requirement does become an issue (e.g. if the proposal distributions have large variance, or if the algorithm is allowed to run for a large number of iterations), it may be beneficial to instead specify $\log m_i = x_i \beta$, which removes the need to alter any proposal distributions.
 	
 	\subsubsection{Efficient Calculation of Acceptance Ratio}
 	An effective method for computing the logged likelihood ratio is to exploit vectorized functions, a feature of many mathematical software packages. Each of the five terms inside the sum in the log-likelihood ratio can be rapidly computed as a vector of values, each element corresponding to an observation of the data. These five vectors can be added together, then summed element-wise, to produce the value of the sum. The sixth term (outside of the sum) can then be added as well.
@@ -162,5 +169,5 @@
 	While the log-Gamma function can be computed in a brute-force manner, i.e. by first computing the Gamma function, then taking its logarithm, most mathematical software will have a dedicated log-Gamma function. Aside from being more computationally efficient, the dedicated log-Gamma function is less prone to rounding errors which may result from taking the Gamma function of large values.
 	
 	\subsubsection{Determination of Acceptance Decision}
-	Finally, once the logged-likelihood ratio is computed, it is straightforward to compute $\alpha$ and compare this value with a value drawn from the $U(0,1)$ distribution to make the acceptance decision. However, this is not necessary: a mathematically equivalent approach is to draw a value of the random variable $Z\sim Exp(1)$, and accept the proposal if $-Z$ is less than the logged likelihood ratio.
+	Finally, once the logged likelihood ratio is computed, it is straightforward to compute $\alpha$ and compare this value with a value drawn from the $U(0,1)$ distribution to make the acceptance decision. However, this is not necessary: a mathematically equivalent approach is to draw a value of the random variable $Z\sim Exp(1)$, and accept the proposal if $-Z$ is less than the logged likelihood ratio.
 \end{document}

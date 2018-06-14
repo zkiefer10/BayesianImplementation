@@ -18,7 +18,7 @@ end
 
 function nbPostPredict(trace, x)
     # Define size parameters
-    predictPerDraw = 1
+    predictPerDraw = 5
     N = length(trace[:,1])
     K = length(trace[1,:])
 
@@ -57,13 +57,19 @@ function prior(x)
     # Uninformative prior:
     return 1
 
-    #Informative prior, in which beta_0, beta_1 and r are distributed independently:
+    # Informative prior, in which beta_0, beta_1 and r are distributed independently:
     # beta_0 = x[1]
     # beta_1 = x[2]
     # r = x[3]
     # return pdf(Normal(5, 3), beta_0) * pdf(Normal(5, 3), beta_1) * pdf(Gamma(5,3), r)
 end
 
+function proposalPDF(beta_g, beta_star)
+    # Symmetric proposal distribution:
+    return 1
+end
+
+# MAIN program
 # Declare distributions for later use
 standNorm = Normal()
 standUni = Uniform(0,1)

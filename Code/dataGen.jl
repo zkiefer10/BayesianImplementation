@@ -2,8 +2,8 @@ using Distributions
 using Plots
 
 # Parameters of data-generating process
-beta_0 = 10
-beta_1 = 5
+beta_0 = 7
+beta_1 = 4
 N = 500
 
 # Declare x-generating distribution
@@ -28,7 +28,8 @@ for i in 1:N
 end
 
 # Plot data for visual confirmation
-scatter(x, y)
+dataPlot = scatter(x, y)
+savefig(dataPlot, "./Figs/dataPlot.png")
 
 # Save data for later use
 writecsv("./Data/data.csv", [x y])
